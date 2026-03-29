@@ -13,6 +13,8 @@ import { config, db } from "./config.js";
 import { messageHandler, antiDeleteHandler, antiViewOnceHandler } from "./handler.js";
 import { loadPlugins, watchPlugins } from "./lib/plugins.js";
 import { startKeepAlive } from "./lib/keepalive.js";
+import { runMemberEvents } from "./plugins/events.js";
+import { isBlocked } from "./lib/store.js";
 
 global.db = db;
 global._prefix = config.prefix;
@@ -67,20 +69,16 @@ async function connectBot() {
       console.error("Numero invalido. Encerrando.");
       process.exit(1);
     }
-
     console.log("Aguardando conexao com WhatsApp...");
     await new Promise((r) => setTimeout(r, 3000));
-
     let code;
     try {
       code = await sock.requestPairingCode(phoneNumber);
     } catch (err) {
       console.error("Erro ao gerar pairing code:", err.message);
-      console.log("Tentando novamente em 5s...");
       await new Promise((r) => setTimeout(r, 5000));
       code = await sock.requestPairingCode(phoneNumber);
     }
-
     const formatted = code?.match(/.{1,4}/g)?.join("-") ?? code;
     console.log("\n========================================");
     console.log("  PAIRING CODE: " + formatted);
@@ -123,6 +121,8 @@ async function connectBot() {
       if (!message.message) continue;
       const msgTime = (message.messageTimestamp ?? 0) * 1000;
       if (msgTime < global._startTime) continue;
+      const senderNum = (message.key.participant ?? message.key.remoteJid ?? "").replace(/[^0-9]/g, "");
+      if (isBlocked(senderNum)) continue;
       await messageHandler(sock, message);
       if (config.antiViewOnce.enabled) await antiViewOnceHandler(sock, message);
     }
@@ -130,6 +130,10 @@ async function connectBot() {
 
   sock.ev.on("messages.update", async (updates) => {
     if (config.antiDelete.enabled) await antiDeleteHandler(sock, updates);
+  });
+
+  sock.ev.on("group-participants.update", async (event) => {
+    await runMemberEvents(sock, event, sock).catch(() => {});
   });
 
   return sock;

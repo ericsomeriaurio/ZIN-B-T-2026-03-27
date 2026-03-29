@@ -1,0 +1,253 @@
+{
+  "groups": {
+    "120363403416897494@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363428238741221@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363425910799865@g.us": {
+      "antilink": true,
+      "antiflood": true,
+      "welcome": true,
+      "goodbye": true,
+      "welcomeMsg": "*Seja bem-vindo moleque😗🥄*",
+      "goodbyeMsg": "*Adeus mano, que os teus algoritmos descansem em paz😌🖕*",
+      "muted": false,
+      "maxflood": 10
+    },
+    "120363401838985474@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363404710735217@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": true,
+      "goodbye": true,
+      "welcomeMsg": "*Bem-vindo ao grupo moleque(a)*🙂",
+      "goodbyeMsg": "*Opa, saiu do grupo, era 🏳️‍🌈😑*",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363406605430816@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363422553996339@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363425583368173@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363405525492774@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363424292243067@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363402604897689@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363424810230356@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363425195496790@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363403913400914@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363423265645059@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363424962015617@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363421938699901@g.us": {
+      "antilink": true,
+      "antiflood": true,
+      "welcome": true,
+      "goodbye": true,
+      "welcomeMsg": "Bem vindo, você que entrou agora!",
+      "goodbyeMsg": "*Opa saiu, era 🏳️‍🌈😑*",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363424958625692@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363424389725081@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363407382934602@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": true,
+      "goodbye": true,
+      "welcomeMsg": "*Seja bem-vindo moleque*",
+      "goodbyeMsg": "*Adeus menorzin*",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363405613226219@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    },
+    "120363403620188666@g.us": {
+      "antilink": false,
+      "antiflood": false,
+      "welcome": false,
+      "goodbye": false,
+      "welcomeMsg": "Bem-vindo(a), @user! 👋",
+      "goodbyeMsg": "Tchau, @user! 👋",
+      "muted": false,
+      "maxflood": 5
+    }
+  },
+  "warnings": {
+    "120363425910799865@g.us": {
+      "161164940046396@lid": 0,
+      "239040716607515@lid": 0,
+      "162711094726910@lid": 0,
+      "4501763305655@lid": 0,
+      "217089876959461@lid": 0,
+      "143057307619564@lid": 0,
+      "44393000104127@lid": 0,
+      "3565477175400@lid": 0,
+      "59378543632387@lid": 0,
+      "242133613170830@lid": 0,
+      "134754968055914@lid": 0,
+      "33273883455686@lid": 0,
+      "182888834281598@lid": 0,
+      "255156021121145@lid": 0,
+      "260606401740838@lid": 0,
+      "11962138276066@lid": 0,
+      "248254058987761@lid": 0,
+      "241948493357294@lid": 0,
+      "213653936681108@lid": 0,
+      "268762360066261@lid": 0
+    }
+  },
+  "blocklist": [
+    "3565477175400@lid",
+    "44702472630516@lid",
+    "44702472630516"
+  ]
+}

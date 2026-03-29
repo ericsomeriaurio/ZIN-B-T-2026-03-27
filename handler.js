@@ -1,6 +1,7 @@
 import { config, db } from "./config.js";
 import { plugins } from "./lib/plugins.js";
 import { makeSimpleClient } from "./lib/simple.js";
+import { resolveNumber, isOwner, buildMappingFromGroup } from "./lib/jid.js";
 import {
   getContentType,
   downloadContentFromMessage,
@@ -20,7 +21,15 @@ export async function messageHandler(sock, message) {
 
     const isGroup = jid.endsWith("@g.us");
     const sender = isGroup ? key.participant : key.remoteJid;
-    const senderNum = (sender ?? "").replace(/[^0-9]/g, "");
+
+    if (isGroup && sender) {
+      try {
+        const meta = await sock.groupMetadata(jid);
+        buildMappingFromGroup(meta.participants);
+      } catch {}
+    }
+
+    const senderNum = resolveNumber(sender ?? "");
     const fromMe = key.fromMe;
     const type = getContentType(msg);
     if (!type) return;
@@ -33,8 +42,8 @@ export async function messageHandler(sock, message) {
       "";
 
     const prefix = config.prefix;
-    const isCommand = body.startsWith(prefix);
-    const isOwner = config.owners.includes(senderNum);
+    const isCmd = body.startsWith(prefix);
+    const ownerCheck = isOwner(sender ?? "", config.owners, config.ownerLids);
 
     const m = {
       key,
@@ -46,8 +55,9 @@ export async function messageHandler(sock, message) {
       fromMe,
       type,
       body,
-      isCommand,
-      isOwner,
+      isCommand: isCmd,
+      isOwner: ownerCheck,
+      sock,
       quoted: msg?.extendedTextMessage?.contextInfo?.quotedMessage
         ? {
             key: {
@@ -66,12 +76,12 @@ export async function messageHandler(sock, message) {
     deletedMessages.set(key.id, { ...m, timestamp: Date.now() });
     cleanOldMessages();
 
-    if (isCommand) {
+    if (isCmd) {
       const args = body.slice(prefix.length).trim().split(/\s+/);
       const command = args.shift().toLowerCase();
       const ownerOnly = isOwnerCommand(command);
-      if (ownerOnly && !isOwner) {
-        return m.reply("Este comando e restrito aos donos do bot.");
+      if (ownerOnly && !ownerCheck) {
+        return m.reply("❌ Apenas donos do bot podem usar este comando.");
       }
       await runCommand(client, m, command, args);
       return;
@@ -84,8 +94,11 @@ export async function messageHandler(sock, message) {
     if (Date.now() - lastTime < COOLDOWN_MS) return;
 
     await checkAutoResponder(client, m);
+
+    const { runGroupEvents } = await import("./plugins/events.js");
+    await runGroupEvents(client, m, sock).catch(() => {});
   } catch (err) {
-    console.error("[Handler] Erro ao processar mensagem:", err);
+    console.error("[Handler] Erro:", err.message);
   }
 }
 
@@ -100,9 +113,9 @@ export async function antiDeleteHandler(sock, updates) {
     const cached = deletedMessages.get(upd?.message?.protocolMessage?.key?.id ?? key.id);
     if (!cached) continue;
     const text =
-      "Mensagem deletada detectada!\n" +
+      "🗑️ *Mensagem deletada!*\n" +
       "De: wa.me/" + cached.senderNum + "\n" +
-      "Conteudo: " + (cached.body || "(midia/sem texto)");
+      "Conteúdo: " + (cached.body || "(mídia)");
     if (config.antiDelete.logToOwner) {
       for (const owner of config.owners) {
         await client.sendText(owner + "@s.whatsapp.net", text).catch(() => {});
@@ -130,8 +143,8 @@ export async function antiViewOnceHandler(sock, message) {
     for await (const chunk of stream) chunks.push(chunk);
     const buffer = Buffer.concat(chunks);
     const notice =
-      "Midia ViewOnce interceptada\n" +
-      "De: wa.me/" + (key.participant ?? jid).replace(/[^0-9]/g, "") + "\n" +
+      "👁️ *ViewOnce interceptado*\n" +
+      "De: wa.me/" + resolveNumber(key.participant ?? jid) + "\n" +
       "Tipo: " + mediaType;
     if (config.antiViewOnce.logToOwner) {
       for (const owner of config.owners) {
@@ -144,7 +157,7 @@ export async function antiViewOnceHandler(sock, message) {
       await client.sendText(jid, notice).catch(() => {});
     }
   } catch (err) {
-    console.error("[AntiViewOnce] Erro:", err);
+    console.error("[AntiViewOnce] Erro:", err.message);
   }
 }
 
@@ -154,13 +167,13 @@ async function runCommand(client, m, command, args) {
       try {
         await plugin.run(client, m, args);
       } catch (err) {
-        console.error("[Handler] Erro no plugin " + name + ":", err);
-        await m.reply("Ocorreu um erro ao executar este comando.").catch(() => {});
+        console.error("[Handler] Erro no plugin " + name + ":", err.message);
+        await m.reply("❌ Erro ao executar comando.").catch(() => {});
       }
       return;
     }
   }
-  await m.reply("Comando " + command + " nao encontrado.");
+  await m.reply("❓ Comando não encontrado. Digite " + config.prefix + "menu para ver os disponíveis.");
 }
 
 async function checkAutoResponder(client, m) {
@@ -175,7 +188,7 @@ async function checkAutoResponder(client, m) {
       } else if (response.type === "audio" || response.type === "ptt") {
         await client.sendFile(m.jid, response.content, "", "", m.key, { ptt: true });
       } else if (response.type === "image" || response.type === "video") {
-        await client.sendFile(m.jid, response.content, "", response.caption ?? "", { key: m.key, message: m.message });
+        await client.sendFile(m.jid, response.content, "", response.caption ?? "");
       }
       return;
     }
@@ -183,7 +196,7 @@ async function checkAutoResponder(client, m) {
 }
 
 function isOwnerCommand(command) {
-  return ["ban", "unban", "broadcast", "setprefix", "reload", "shutdown", "add", "kick"].includes(command);
+  return ["ban", "unban", "banlist", "broadcast", "setprefix", "reload", "shutdown"].includes(command);
 }
 
 function cleanOldMessages(maxAge = 600000) {
