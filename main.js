@@ -13,12 +13,13 @@ import { config, db } from "./config.js";
 import { messageHandler, antiDeleteHandler, antiViewOnceHandler } from "./handler.js";
 import { loadPlugins, watchPlugins } from "./lib/plugins.js";
 import { startKeepAlive } from "./lib/keepalive.js";
-import { runMemberEvents } from "./plugins/events.js";
-import { isBlocked } from "./lib/store.js";
+import { runMemberEvents } from "./plugins/admin/events.js";
+import { isBlocked, getPendingSchedules, removeSchedule } from "./lib/store.js";
+import { registerPushName, registerContact, buildMappingFromGroup, loadLidMappingsFromDisk } from "./lib/jid.js";
 
 global.db = db;
 global._prefix = config.prefix;
-global._startTime = Date.now();
+global._startTime = Infinity; // ← bloqueado até conexão confirmada
 
 const silentLogger = {
   level: "silent",
@@ -92,8 +93,10 @@ async function connectBot() {
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
+
     if (connection === "close") {
       if (stopKeepAlive) stopKeepAlive();
+      global._startTime = Infinity; // ← bloqueia mensagens durante reconexão
       const code = new Boom(lastDisconnect?.error)?.output?.statusCode;
       if (code !== DisconnectReason.loggedOut) {
         console.log("Reconectando em 5s... (codigo: " + code + ")");
@@ -103,7 +106,28 @@ async function connectBot() {
         process.exit(1);
       }
     } else if (connection === "open") {
+      // ← só agora define o startTime — ignora tudo anterior a este momento
+      global._startTime = Date.now();
       console.log("Bot conectado! Numero: " + sock.user?.id);
+      console.log("Ignorando mensagens anteriores a: " + new Date(global._startTime).toLocaleString("pt-BR"));
+
+      // ── Worker de agendamentos — verifica a cada 30s
+      if (!global._scheduleWorker) {
+        global._scheduleWorker = setInterval(async () => {
+          const pending = getPendingSchedules();
+          for (const s of pending) {
+            try {
+              await sock.sendMessage(s.jid, { text: s.text });
+            } catch (err) {
+              console.error("[Agendador] Erro ao enviar:", err.message);
+            } finally {
+              removeSchedule(s.id);
+            }
+          }
+        }, 30000);
+        console.log("[Agendador] Worker iniciado.");
+      }
+
       if (config.keepAlive.enabled) {
         stopKeepAlive = startKeepAlive(sock, config.keepAlive.intervalMs);
       }
@@ -119,10 +143,21 @@ async function connectBot() {
     if (type !== "notify" && type !== "append") return;
     for (const message of messages) {
       if (!message.message) continue;
+
+      // ← bloqueia se _startTime ainda for Infinity (não conectado)
+      // ou se a mensagem for anterior à conexão
       const msgTime = (message.messageTimestamp ?? 0) * 1000;
       if (msgTime < global._startTime) continue;
+
       const senderNum = (message.key.participant ?? message.key.remoteJid ?? "").replace(/[^0-9]/g, "");
       if (isBlocked(senderNum)) continue;
+
+      // Captura pushName imediatamente — dado mais fiável aqui
+      if (message.pushName) {
+        const senderJid = message.key.participant ?? message.key.remoteJid;
+        if (senderJid) registerPushName(senderJid, message.pushName);
+      }
+
       await messageHandler(sock, message);
       if (config.antiViewOnce.enabled) await antiViewOnceHandler(sock, message);
     }
@@ -136,11 +171,34 @@ async function connectBot() {
     await runMemberEvents(sock, event, sock).catch(() => {});
   });
 
+  // Captura mapeamentos LID ↔ número em tempo real
+  sock.ev.on("contacts.upsert", (contacts) => {
+    for (const contact of contacts) {
+      registerContact(contact.id, {
+        name: contact.name ?? contact.notify,
+        phoneNumber: contact.id.endsWith("@s.whatsapp.net")
+          ? contact.id.split("@")[0]
+          : null,
+      });
+    }
+  });
+
+  sock.ev.on("contacts.update", (updates) => {
+    for (const update of updates) {
+      if (update.id && (update.name || update.notify)) {
+        registerContact(update.id, {
+          name: update.name ?? update.notify,
+        });
+      }
+    }
+  });
+
   return sock;
 }
 
 async function main() {
   console.log("Iniciando " + config.botName + "...");
+  loadLidMappingsFromDisk(config.sessionDir);
   await loadPlugins(config.pluginsDir);
   watchPlugins(config.pluginsDir);
   await connectBot();

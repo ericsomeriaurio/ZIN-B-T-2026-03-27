@@ -1,7 +1,8 @@
 import { config, db } from "./config.js";
 import { plugins } from "./lib/plugins.js";
 import { makeSimpleClient } from "./lib/simple.js";
-import { resolveNumber, isOwner, buildMappingFromGroup } from "./lib/jid.js";
+import { resolveNumber, resolveName, isOwner, buildMappingFromGroup, registerPushName, toMentionJid } from "./lib/jid.js";
+import { listResponses } from "./lib/store.js";
 import {
   getContentType,
   downloadContentFromMessage,
@@ -29,8 +30,12 @@ export async function messageHandler(sock, message) {
       } catch {}
     }
 
-    const senderNum = resolveNumber(sender ?? "");
+    const senderNum = resolveNumber(sender ?? "", key);
     const fromMe = key.fromMe;
+
+    // Captura pushName da mensagem
+    const pushName = message.pushName ?? resolveName(sender ?? "") ?? senderNum;
+    if (message.pushName && sender) registerPushName(sender, message.pushName);
     const type = getContentType(msg);
     if (!type) return;
 
@@ -57,6 +62,8 @@ export async function messageHandler(sock, message) {
       body,
       isCommand: isCmd,
       isOwner: ownerCheck,
+      pushName,
+      mentionJid: toMentionJid(sender ?? "", key),
       sock,
       quoted: msg?.extendedTextMessage?.contextInfo?.quotedMessage
         ? {
@@ -68,7 +75,7 @@ export async function messageHandler(sock, message) {
             message: msg.extendedTextMessage.contextInfo.quotedMessage,
           }
         : null,
-      reply: (text) => client.sendText(jid, text, message),
+      reply: (text) => sock.sendMessage(jid, { text }, { quoted: message }),
       replyFile: (src, caption) => client.sendFile(jid, src, "", caption, message),
       react: (emoji) => client.react(jid, emoji, key),
     };
@@ -81,7 +88,9 @@ export async function messageHandler(sock, message) {
       const command = args.shift().toLowerCase();
       const ownerOnly = isOwnerCommand(command);
       if (ownerOnly && !ownerCheck) {
-        return m.reply("❌ Apenas donos do bot podem usar este comando.");
+        return sock.sendMessage(m.jid, {
+        text: "╭─── 『 🚫 *ACESSO NEGADO* 』 ───\n│\n│ Este comando é exclusivo\n│ para *Donos* do bot.\n│\n╰─────────────────────",
+      }, { quoted: message });
       }
       await runCommand(client, m, command, args);
       return;
@@ -95,7 +104,7 @@ export async function messageHandler(sock, message) {
 
     await checkAutoResponder(client, m);
 
-    const { runGroupEvents } = await import("./plugins/events.js");
+    const { runGroupEvents } = await import("./plugins/admin/events.js");
     await runGroupEvents(client, m, sock).catch(() => {});
   } catch (err) {
     console.error("[Handler] Erro:", err.message);
@@ -113,9 +122,11 @@ export async function antiDeleteHandler(sock, updates) {
     const cached = deletedMessages.get(upd?.message?.protocolMessage?.key?.id ?? key.id);
     if (!cached) continue;
     const text =
-      "🗑️ *Mensagem deletada!*\n" +
-      "De: wa.me/" + cached.senderNum + "\n" +
-      "Conteúdo: " + (cached.body || "(mídia)");
+      `🗑️ *Mensagem Deletada*\n` +
+      `┃\n` +
+      `┃  👤 De: wa.me/${cached.senderNum}\n` +
+      `┃  💬 Conteúdo: ${cached.body || "(mídia)"}\n` +
+      `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`;
     if (config.antiDelete.logToOwner) {
       for (const owner of config.owners) {
         await client.sendText(owner + "@s.whatsapp.net", text).catch(() => {});
@@ -143,9 +154,11 @@ export async function antiViewOnceHandler(sock, message) {
     for await (const chunk of stream) chunks.push(chunk);
     const buffer = Buffer.concat(chunks);
     const notice =
-      "👁️ *ViewOnce interceptado*\n" +
-      "De: wa.me/" + resolveNumber(key.participant ?? jid) + "\n" +
-      "Tipo: " + mediaType;
+      `👁️ *ViewOnce Interceptado*\n` +
+      `┃\n` +
+      `┃  👤 De: wa.me/${resolveNumber(key.participant ?? jid)}\n` +
+      `┃  🎞️ Tipo: ${mediaType}\n` +
+      `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`;
     if (config.antiViewOnce.logToOwner) {
       for (const owner of config.owners) {
         const ownerJid = owner + "@s.whatsapp.net";
@@ -173,25 +186,43 @@ async function runCommand(client, m, command, args) {
       return;
     }
   }
-  await m.reply("❓ Comando não encontrado. Digite " + config.prefix + "menu para ver os disponíveis.");
+  const invalidText = "╭─── 『 ❓ *COMANDO* 』 ───\n│\n│ Comando não reconhecido.\n│ Use *" + config.prefix + "menu* para ver\n│ todos os comandos disponíveis.\n│\n╰─────────────────────";
+  await sock.sendMessage(m.jid, { text: invalidText }, { quoted: message });
 }
 
 async function checkAutoResponder(client, m) {
   const lowerBody = m.body.toLowerCase().trim();
   if (!lowerBody) return;
+
+  // 1. Respostas globais do config.js
   for (const [keyword, response] of Object.entries(db.responses)) {
     if (lowerBody.includes(keyword.toLowerCase())) {
-      const cooldownKey = m.senderNum + ":" + m.jid;
-      cooldowns.set(cooldownKey, Date.now());
-      if (response.type === "text") {
-        await m.reply(response.content);
-      } else if (response.type === "audio" || response.type === "ptt") {
-        await client.sendFile(m.jid, response.content, "", "", m.key, { ptt: true });
-      } else if (response.type === "image" || response.type === "video") {
-        await client.sendFile(m.jid, response.content, "", response.caption ?? "");
-      }
+      await sendResponse(client, m, response);
       return;
     }
+  }
+
+  // 2. Respostas dinâmicas por grupo (store.js)
+  if (m.isGroup) {
+    const groupResponses = listResponses(m.jid);
+    for (const [keyword, response] of Object.entries(groupResponses)) {
+      if (lowerBody.includes(keyword.toLowerCase())) {
+        await sendResponse(client, m, response);
+        return;
+      }
+    }
+  }
+}
+
+async function sendResponse(client, m, response) {
+  const cooldownKey = m.senderNum + ":" + m.jid;
+  cooldowns.set(cooldownKey, Date.now());
+  if (response.type === "text") {
+    await m.reply(response.content);
+  } else if (response.type === "audio" || response.type === "ptt") {
+    await client.sendFile(m.jid, response.content, "", "", m.key, { ptt: true });
+  } else if (response.type === "image" || response.type === "video") {
+    await client.sendFile(m.jid, response.content, "", response.caption ?? "");
   }
 }
 

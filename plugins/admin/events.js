@@ -1,0 +1,164 @@
+import { getGroup, addWarning, clearWarnings } from "../../lib/store.js";
+import { isBotAdmin, isStatusForward } from "../../lib/helpers.js";
+
+const floodMap = new Map();
+const LINK_REGEX = /(https?:\/\/|chat\.whatsapp\.com|wa\.me|t\.me|bit\.ly)\S+/i;
+
+// ─── HELPER — apaga, adverte ou bane ───────────────────────────────────────
+
+async function enforceViolation(client, m, jid, sender, senderNum, banMode, label) {
+  await client.sendMessage(jid, { delete: m.key }).catch(() => {});
+
+  if (banMode) {
+    const msg =
+      `🚫 *${label}*\n` +
+      `┃\n` +
+      `┃  @${senderNum} foi *removido(a)*\n` +
+      `┃  por enviar conteúdo proibido.\n` +
+      `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`;
+    await client.groupParticipantsUpdate(jid, [sender], "remove").catch(() => {});
+    await client.sendMessage(jid, { text: msg, mentions: [sender] }).catch(() => {});
+  } else {
+    const count = addWarning(jid, senderNum);
+    let msg =
+      `⚠️ *${label}*\n` +
+      `┃\n` +
+      `┃  @${senderNum} foi advertido(a).\n` +
+      `┃  ⚠️ Advertência: *${count}/3*\n`;
+    if (count >= 3) {
+      msg += `┃  🚫 Limite atingido! Removendo...\n`;
+      await client.groupParticipantsUpdate(jid, [sender], "remove").catch(() => {});
+      clearWarnings(jid, senderNum);
+    }
+    msg += `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`;
+    await client.sendMessage(jid, { text: msg, mentions: [sender] }).catch(() => {});
+  }
+}
+
+
+
+// ─── EVENTOS DE GRUPO (mensagens) ──────────────────────────────────────────
+
+export async function runGroupEvents(client, m, sock) {
+  if (!m.isGroup) return;
+  const { jid, sender, senderNum, body, isOwner, key, type } = m;
+
+  let isAdmin = false;
+  try {
+    const meta = await client.groupMetadata(jid);
+    isAdmin = meta.participants.some(
+      (p) => p.id === sender && (p.admin === "admin" || p.admin === "superadmin")
+    );
+  } catch {}
+
+  if (isAdmin || isOwner) return;
+
+  const cfg = getGroup(jid);
+
+  // ── Somente Admins ────────────────────────────────────────────────────────
+  if (cfg.somenteAdmins) {
+    await client.sendMessage(jid, { delete: key }).catch(() => {});
+    await client.sendMessage(jid, {
+      text:
+        `🔒 *Somente Admins*\n` +
+        `┃\n` +
+        `┃  Apenas admins podem\n` +
+        `┃  enviar mensagens agora.\n` +
+        `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`,
+      mentions: [sender],
+    }).catch(() => {});
+    return;
+  }
+
+  // ── Anti-Status (antes do anti-link pois status pode ter links) ───────────
+  if (cfg.antistatus && isStatusForward(m)) {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antistatusBan, "📢 Anti-Status");
+    return;
+  }
+
+  // ── Anti-Link ─────────────────────────────────────────────────────────────
+  if (cfg.antilink && LINK_REGEX.test(body)) {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antilinkBan, "🔗 Anti-Link");
+    return;
+  }
+
+  // ── Anti-Flood ────────────────────────────────────────────────────────────
+  if (cfg.antiflood) {
+    const now = Date.now();
+    const fKey = jid + ":" + sender;
+    if (!floodMap.has(fKey)) floodMap.set(fKey, []);
+    const times = floodMap.get(fKey).filter((t) => now - t < 5000);
+    times.push(now);
+    floodMap.set(fKey, times);
+    const max = cfg.maxflood ?? 5;
+    if (times.length >= max) {
+      floodMap.delete(fKey);
+      await enforceViolation(client, m, jid, sender, senderNum, false, "🌊 Anti-Flood");
+    }
+  }
+
+  // ── Anti-Áudio ────────────────────────────────────────────────────────────
+  if (cfg.antiaudio && type === "audioMessage") {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antiaudioBan, "🎵 Anti-Áudio");
+    return;
+  }
+
+  // ── Anti-Vídeo ────────────────────────────────────────────────────────────
+  if (cfg.antivideo && type === "videoMessage") {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antivideoBan, "🎬 Anti-Vídeo");
+    return;
+  }
+
+  // ── Anti-Imagem ───────────────────────────────────────────────────────────
+  if (cfg.antiimg && type === "imageMessage") {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antiimgBan, "🖼️ Anti-Imagem");
+    return;
+  }
+
+  // ── Anti-Documento ────────────────────────────────────────────────────────
+  if (cfg.antidoc && type === "documentMessage") {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antidocBan, "📄 Anti-Documento");
+    return;
+  }
+
+  // ── Anti-Sticker ──────────────────────────────────────────────────────────
+  if (cfg.antisticker && type === "stickerMessage") {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antistickerBan, "🎭 Anti-Sticker");
+    return;
+  }
+
+  // ── Anti-Evento ───────────────────────────────────────────────────────────
+  if (cfg.antievento && type === "eventMessage") {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antieventoBan, "📅 Anti-Evento");
+    return;
+  }
+
+  // ── Anti-Produto ──────────────────────────────────────────────────────────
+  if (cfg.antiproduto && type === "productMessage") {
+    await enforceViolation(client, m, jid, sender, senderNum, cfg.antiprodutoBan, "🛍️ Anti-Produto");
+    return;
+  }
+}
+
+// ─── EVENTOS DE MEMBROS (entrar/sair) ──────────────────────────────────────
+
+export async function runMemberEvents(client, event, sock) {
+  const { id, participants, action } = event;
+  const cfg = getGroup(id);
+
+  if (action === "add" && cfg.welcome) {
+    for (const p of participants) {
+      const num = p.replace("@s.whatsapp.net", "");
+      const text = cfg.welcomeMsg.replace("@user", "@" + num);
+      await client.sendMessage(id, { text, mentions: [p] }).catch(() => {});
+    }
+  }
+
+  if (action === "remove" && cfg.goodbye) {
+    for (const p of participants) {
+      const num = p.replace("@s.whatsapp.net", "");
+      const text = cfg.goodbyeMsg.replace("@user", num);
+      await client.sendMessage(id, { text }).catch(() => {});
+    }
+  }
+}

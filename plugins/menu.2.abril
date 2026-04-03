@@ -1,0 +1,152 @@
+import { config } from "../config.js";
+import { plugins } from "../lib/plugins.js";
+
+// URL da imagem de capa — troca quando tiveres a imagem final
+const COVER_URL = "https://files.catbox.moe/remi43.png";
+
+function getUptime() {
+  const u = process.uptime();
+  const h = Math.floor(u / 3600);
+  const m = Math.floor((u % 3600) / 60);
+  const s = Math.floor(u % 60);
+  return `${h}h ${m}m ${s}s`;
+}
+
+function getDateTime() {
+  return new Date().toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function countCommands() {
+  let total = 0;
+  for (const [, plugin] of plugins) {
+    if (plugin.commands) total += plugin.commands.length;
+  }
+  return total;
+}
+
+async function getProfile(sock, m) {
+  if (m.isOwner) return "👑 Dono";
+  if (m.isGroup) {
+    try {
+      const meta = await sock.groupMetadata(m.jid);
+      const isAdmin = meta.participants.some(
+        (p) => p.id === m.sender && (p.admin === "admin" || p.admin === "superadmin")
+      );
+      if (isAdmin) return "🛡️ Admin";
+    } catch {}
+  }
+  return "👤 Membro";
+}
+
+async function getSenderName(sock, m) {
+  try {
+    const info = await sock.contactsUpsert?.([]);
+    const contact = sock.store?.contacts?.[m.sender];
+    if (contact?.name) return contact.name;
+    if (contact?.notify) return contact.notify;
+  } catch {}
+  return m.senderNum ?? "Utilizador";
+}
+
+function sec(title) {
+  return `┠━━━━━━[ ${title} ]━━━━━━┅`;
+}
+
+export default {
+  commands: ["menu", "help", "ajuda", "cmds"],
+  description: "Menu de comandos",
+
+  async run(client, m, args) {
+    const sock = m.sock ?? client;
+    const p = config.prefix;
+
+    const nome = await getSenderName(sock, m);
+    const perfil = await getProfile(sock, m);
+    const uptime = getUptime();
+    const datetime = getDateTime();
+    const total = countCommands();
+
+    const text =
+      `╭━━━━━━[ ⚡ ${config.botName} ⚡ ]━━━━━━╮\n` +
+      `┃\n` +
+      `┃  👤 Olá, *${nome}*!\n` +
+      `┃  🎖 Perfil: ${perfil}\n` +
+      `┃  📅 ${datetime}\n` +
+      `┃  ⏱ Uptime: ${uptime}\n` +
+      `┃  📦 Comandos: ${total} disponíveis\n` +
+      `┃\n` +
+
+      sec("👥 ADMINISTRAÇÃO") + "\n" +
+      `┃  » ${p}kick      ➜ Remove membro\n` +
+      `┃  » ${p}add       ➜ Adiciona membro\n` +
+      `┃  » ${p}promote   ➜ Promove a admin\n` +
+      `┃  » ${p}demote    ➜ Remove admin\n` +
+      `┃  » ${p}mute      ➜ Fecha o grupo\n` +
+      `┃  » ${p}unmute    ➜ Abre o grupo\n` +
+      `┃  » ${p}hidetag   ➜ Marca todos (silencioso)\n` +
+      `┃  » ${p}tagall    ➜ Menciona todos\n` +
+      `┃  » ${p}setname   ➜ Muda nome do grupo\n` +
+      `┃  » ${p}setdesc   ➜ Muda descrição\n` +
+      `┃  » ${p}setpic    ➜ Muda foto do grupo\n` +
+      `┃  » ${p}linkgroup ➜ Link do grupo\n` +
+      `┃  » ${p}revokelink➜ Revoga o link\n` +
+      `┃  » ${p}groupinfo ➜ Info do grupo\n` +
+      `┃\n` +
+
+      sec("⚠️ ADVERTÊNCIAS") + "\n" +
+      `┃  » ${p}warn      ➜ Adverte membro (3=kick)\n` +
+      `┃  » ${p}delwarn   ➜ Remove 1 advertência\n` +
+      `┃  » ${p}warnlist  ➜ Lista advertências\n` +
+      `┃  » ${p}clearwarn ➜ Limpa todas as advert.\n` +
+      `┃\n` +
+
+      sec("🛡️ PROTEÇÕES") + "\n" +
+      `┃  » ${p}antilink  ➜ Anti-link on/off\n` +
+      `┃  » ${p}antiflood ➜ Anti-flood on/off\n` +
+      `┃  » ${p}setmax    ➜ Limite de flood\n` +
+      `┃  » ${p}welcome   ➜ Boas-vindas on/off\n` +
+      `┃  » ${p}goodbye   ➜ Despedida on/off\n` +
+      `┃\n` +
+
+      sec("👑 DONOS") + "\n" +
+      `┃  » ${p}ban       ➜ Bane do bot\n` +
+      `┃  » ${p}unban     ➜ Desbane número\n` +
+      `┃  » ${p}banlist   ➜ Lista de banidos\n` +
+      `┃  » ${p}broadcast ➜ Envia a todos os grupos\n` +
+      `┃  » ${p}setprefix ➜ Muda o prefixo\n` +
+      `┃  » ${p}reload    ➜ Recarrega plugins\n` +
+      `┃  » ${p}shutdown  ➜ Desliga o bot\n` +
+      `┃\n` +
+
+      sec("🤖 GERAL") + "\n" +
+      `┃  » ${p}ping      ➜ Testa o bot\n` +
+      `┃  » ${p}info      ➜ Informações do bot\n` +
+      `┃  » ${p}myid      ➜ Ver seus IDs\n` +
+      `┃  » ${p}menu      ➜ Este menu\n` +
+      `┃\n` +
+      `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n` +
+      `\n` +
+      `╭━━━━━[ 💡 DICA ]━━━━━╮\n` +
+      `┃  Responda uma mensagem  ┃\n` +
+      `┃  com o comando para     ┃\n` +
+      `┃  usar aquela pessoa     ┃\n` +
+      `┃  como alvo.             ┃\n` +
+      `╰━━━[ ${config.botName} • v1.0 ]━━━╯`;
+
+    try {
+      const res = await fetch(COVER_URL);
+      if (!res.ok) throw new Error("Falha ao baixar imagem");
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const sock2 = m.sock ?? client;
+      await sock2.sendMessage(m.jid, { image: buffer, caption: text }, {});
+    } catch {
+      await m.reply(text);
+    }
+  },
+};

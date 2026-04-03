@@ -1,0 +1,152 @@
+import {
+  makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
+  isJidBroadcast,
+} from "@whiskeysockets/baileys";
+import { Boom } from "@hapi/boom";
+import readline from "readline";
+import path from "path";
+import { config, db } from "./config.js";
+import { messageHandler, antiDeleteHandler, antiViewOnceHandler } from "./handler.js";
+import { loadPlugins, watchPlugins } from "./lib/plugins.js";
+import { startKeepAlive } from "./lib/keepalive.js";
+import { runMemberEvents } from "./plugins/events.js";
+import { isBlocked } from "./lib/store.js";
+
+global.db = db;
+global._prefix = config.prefix;
+global._startTime = Date.now();
+
+const silentLogger = {
+  level: "silent",
+  trace: () => {},
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => silentLogger,
+};
+
+async function askPhone() {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question("Digite seu numero (DDI+DDD+numero, ex: 5511999999999): ", (answer) => {
+      rl.close();
+      resolve(answer.trim().replace(/[^0-9]/g, ""));
+    });
+  });
+}
+
+async function connectBot() {
+  const sessionDir = path.resolve(config.sessionDir);
+  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+  const { version } = await fetchLatestBaileysVersion();
+
+  console.log("Versao Baileys:", version.join("."));
+
+  const sock = makeWASocket({
+    version,
+    auth: {
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, silentLogger),
+    },
+    printQRInTerminal: false,
+    mobile: false,
+    logger: silentLogger,
+    browser: ["Ubuntu", "Chrome", "20.0.04"],
+    getMessage: async () => ({ conversation: "" }),
+    shouldIgnoreJid: (jid) => isJidBroadcast(jid),
+  });
+
+  let stopKeepAlive = null;
+
+  if (!sock.authState.creds.registered) {
+    const phoneNumber = await askPhone();
+    if (!phoneNumber || phoneNumber.length < 10) {
+      console.error("Numero invalido. Encerrando.");
+      process.exit(1);
+    }
+    console.log("Aguardando conexao com WhatsApp...");
+    await new Promise((r) => setTimeout(r, 3000));
+    let code;
+    try {
+      code = await sock.requestPairingCode(phoneNumber);
+    } catch (err) {
+      console.error("Erro ao gerar pairing code:", err.message);
+      await new Promise((r) => setTimeout(r, 5000));
+      code = await sock.requestPairingCode(phoneNumber);
+    }
+    const formatted = code?.match(/.{1,4}/g)?.join("-") ?? code;
+    console.log("\n========================================");
+    console.log("  PAIRING CODE: " + formatted);
+    console.log("  WhatsApp > Dispositivos Conectados");
+    console.log("  > Conectar com numero de telefone");
+    console.log("  > Digite: " + formatted);
+    console.log("========================================\n");
+  }
+
+  sock.ev.on("creds.update", saveCreds);
+
+  sock.ev.on("connection.update", async (update) => {
+    const { connection, lastDisconnect } = update;
+    if (connection === "close") {
+      if (stopKeepAlive) stopKeepAlive();
+      const code = new Boom(lastDisconnect?.error)?.output?.statusCode;
+      if (code !== DisconnectReason.loggedOut) {
+        console.log("Reconectando em 5s... (codigo: " + code + ")");
+        setTimeout(() => connectBot(), 5000);
+      } else {
+        console.error("Bot deslogado. Apague a pasta sessions e reinicie.");
+        process.exit(1);
+      }
+    } else if (connection === "open") {
+      console.log("Bot conectado! Numero: " + sock.user?.id);
+      if (config.keepAlive.enabled) {
+        stopKeepAlive = startKeepAlive(sock, config.keepAlive.intervalMs);
+      }
+      for (const owner of config.owners) {
+        await sock.sendMessage(owner + "@s.whatsapp.net", {
+          text: config.botName + " esta online! " + new Date().toLocaleString("pt-BR"),
+        }).catch(() => {});
+      }
+    }
+  });
+
+  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    if (type !== "notify" && type !== "append") return;
+    for (const message of messages) {
+      if (!message.message) continue;
+      const msgTime = (message.messageTimestamp ?? 0) * 1000;
+      if (msgTime < global._startTime) continue;
+      const senderNum = (message.key.participant ?? message.key.remoteJid ?? "").replace(/[^0-9]/g, "");
+      if (isBlocked(senderNum)) continue;
+      await messageHandler(sock, message);
+      if (config.antiViewOnce.enabled) await antiViewOnceHandler(sock, message);
+    }
+  });
+
+  sock.ev.on("messages.update", async (updates) => {
+    if (config.antiDelete.enabled) await antiDeleteHandler(sock, updates);
+  });
+
+  sock.ev.on("group-participants.update", async (event) => {
+    await runMemberEvents(sock, event, sock).catch(() => {});
+  });
+
+  return sock;
+}
+
+async function main() {
+  console.log("Iniciando " + config.botName + "...");
+  await loadPlugins(config.pluginsDir);
+  watchPlugins(config.pluginsDir);
+  await connectBot();
+}
+
+main().catch((err) => {
+  console.error("Erro fatal:", err);
+  process.exit(1);
+});

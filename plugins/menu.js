@@ -1,72 +1,103 @@
 import { config } from "../config.js";
 
+const COVER_URL = "https://files.catbox.moe/remi43.png";
+
+const FRASES = [
+  "\"As pessoas só se entenderão umas às outras quando todas sentirem a mesma dor.\" — Pain 🌧️",
+  "\"Aqueles que não entendem o verdadeiro poder são condenados a repetir os mesmos erros.\" — Madara 👁️",
+  "\"Neste mundo, onde quer que haja luz, sempre haverá sombras.\" — Madara 🌑",
+  "\"Eu me tornei o Hokage sem que ninguém reconhecesse meu poder.\" — Obito 🌀",
+  "\"A dor permite que as pessoas cresçam.\" — Pain 💫",
+  "\"O verdadeiro poder não é quando você ataca, mas quando você protege.\" — Naruto ⚡",
+  "\"Enquanto eu souber o que é o amor, posso encontrar o caminho de volta à vida.\" — Obito 🔥",
+  "\"Um homem que não tem nada não pode ser destruído.\" — Madara ⚔️",
+  "\"Sonhos nunca acabam.\" — Naruto 🍥",
+  "\"Coragem é saber quando você está com medo e agir mesmo assim.\" — Kakashi ⚡",
+];
+
+function getFrase() {
+  return FRASES[Math.floor(Math.random() * FRASES.length)];
+}
+
+function getTime() {
+  return new Date().toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function getUptime() {
+  const u = process.uptime();
+  const h = Math.floor(u / 3600);
+  const mn = Math.floor((u % 3600) / 60);
+  const s = Math.floor(u % 60);
+  return `${String(h).padStart(2,"0")}:${String(mn).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+
+function getRam() {
+  return Math.round(process.memoryUsage().rss / 1024 / 1024);
+}
+
 export default {
   commands: ["menu", "help", "ajuda", "cmds"],
-  description: "Menu de comandos",
+  description: "Menu principal",
 
   async run(client, m, args) {
+    const sock = m.sock ?? client;
     const p = config.prefix;
-    const text =
-      "╔══════════════════════╗\n" +
-      "║   " + config.botName + "   ║\n" +
-      "╚══════════════════════╝\n\n" +
+    const name = m.pushName ?? m.senderNum ?? "Utilizador";
 
-      "👥 *ADMINISTRAÇÃO DE GRUPO*\n" +
-      "┌─────────────────────\n" +
-      "│ " + p + "kick — Remove membro\n" +
-      "│ " + p + "add numero — Adiciona membro\n" +
-      "│ " + p + "promote — Promove a admin\n" +
-      "│ " + p + "demote — Remove admin\n" +
-      "│ " + p + "mute — Fecha o grupo\n" +
-      "│ " + p + "unmute — Abre o grupo\n" +
-      "│ " + p + "hidetag texto — Marca todos\n" +
-      "│ " + p + "tagall texto — Menciona todos\n" +
-      "│ " + p + "setname nome — Muda nome\n" +
-      "│ " + p + "setdesc texto — Muda descrição\n" +
-      "│ " + p + "setpic — Muda foto do grupo\n" +
-      "│ " + p + "linkgroup — Link do grupo\n" +
-      "│ " + p + "revokelink — Revoga o link\n" +
-      "│ " + p + "groupinfo — Info do grupo\n" +
-      "└─────────────────────\n\n" +
+    const text = [
+      `╭─── 『 *${config.botName}* 』 ───`,
+      `│`,
+      `├─〔 *STATUS DO SISTEMA* 〕`,
+      `│ 👤 *USER:* ${name}`,
+      `│ 🛠️ *PREFIXO:* [ ${p} ]`,
+      `│ 🕒 *HORA:* ${getTime()}`,
+      `│ ⏳ *UPTIME:* ${getUptime()}`,
+      `│ 📊 *RAM:* ${getRam()}MB`,
+      `│`,
+      `╰───────────────────────────`,
+      ``,
+      `*Bem-vindo ao centro de comando!*`,
+      `  Selecione uma categoria abaixo:`,
+      ``,
+      `🌟 *CATEGORIAS DISPONÍVEIS:*`,
+      ``,
+      `  ✧ 🛡️ *MODERAÇÃO*`,
+      `  ↳ Digite: *${p}menu-adm*`,
+      ``,
+      `  ✧ 🛠️ *UTILIDADES*`,
+      `  ↳ Digite: *${p}menu-util*`,
+      ``,
+      `  ✧ 🎮 *BRINCADEIRAS*`,
+      `  ↳ Digite: *${p}menu-fun*`,
+      ``,
+      `  ✧ 📚 *INFORMAÇÕES*`,
+      `  ↳ Digite: *${p}menu-info*`,
+      ``,
+      `  ✧ 🎨 *FIGURINHAS*`,
+      `  ↳ Digite: *${p}menu-stk*`,
+      ``,
+      `  ✧ ⚙️ *PAINEL DONO*`,
+      `  ↳ Digite: *${p}menu-owner*`,
+      ``,
+      `╭───〔 *DESENVOLVEDOR* 〕───`,
+      `│ 👨‍💻 *DEV:* Erik (Tobizin)`,
+      `│ 📍 *PAÍS:* Angola 🇦🇴`,
+      `│ 💬 *CONTATO:* wa.me/244935483240`,
+      `╰───────────────────────────`,
+      ``,
+      `💡 _${getFrase()}_`,
+    ].join("\n");
 
-      "⚠️ *ADVERTÊNCIAS*\n" +
-      "┌─────────────────────\n" +
-      "│ " + p + "warn motivo — Adverte (3=kick)\n" +
-      "│ " + p + "delwarn — Remove 1 advertência\n" +
-      "│ " + p + "warnlist — Lista advertências\n" +
-      "│ " + p + "clearwarn — Limpa advertências\n" +
-      "└─────────────────────\n\n" +
-
-      "🛡️ *PROTEÇÕES DO GRUPO*\n" +
-      "┌─────────────────────\n" +
-      "│ " + p + "antilink on/off — Anti-link\n" +
-      "│ " + p + "antiflood on/off — Anti-flood\n" +
-      "│ " + p + "setmax N — Limite do flood\n" +
-      "│ " + p + "welcome on/off msg\n" +
-      "│ " + p + "goodbye on/off msg\n" +
-      "└─────────────────────\n\n" +
-
-      "👑 *APENAS DONOS*\n" +
-      "┌─────────────────────\n" +
-      "│ " + p + "ban — Bane do bot\n" +
-      "│ " + p + "unban numero — Desbane\n" +
-      "│ " + p + "banlist — Lista de banidos\n" +
-      "│ " + p + "broadcast texto — Envia a todos\n" +
-      "│ " + p + "setprefix ! — Muda prefixo\n" +
-      "│ " + p + "reload — Recarrega plugins\n" +
-      "│ " + p + "shutdown — Desliga o bot\n" +
-      "└─────────────────────\n\n" +
-
-      "🤖 *GERAL*\n" +
-      "┌─────────────────────\n" +
-      "│ " + p + "ping — Testa o bot\n" +
-      "│ " + p + "info — Info do bot\n" +
-      "│ " + p + "menu — Este menu\n" +
-      "└─────────────────────\n\n" +
-
-      "💡 *Dica:* Responda uma mensagem com o comando para usar aquela pessoa como alvo!\n" +
-      "Ex: Responda com " + p + "kick para remover alguém.";
-
-    await m.reply(text);
+    try {
+      const res = await fetch(COVER_URL);
+      if (!res.ok) throw new Error("Sem imagem");
+      const buffer = Buffer.from(await res.arrayBuffer());
+      await sock.sendMessage(m.jid, { image: buffer, caption: text }, { quoted: m.key ? { key: m.key, message: m.message } : undefined });
+    } catch {
+      await sock.sendMessage(m.jid, { text }, { quoted: m.key ? { key: m.key, message: m.message } : undefined });
+    }
   },
 };
